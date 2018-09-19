@@ -1,2 +1,2 @@
 # DOS
-Distributed Operating System Project 2
+Distributed Operating System Project Work
