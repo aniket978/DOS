@@ -20,7 +20,7 @@ defmodule CustomSupervisor do
     Supervisor.start_link(__MODULE__,[])
   end
 
-  def init() do
+  def init([]) do
     children = 1..5|> Enum.map(&(worker(Basic,[&1],id: "my_worker_"<>Integer.to_string(&1))))
     opts = [strategy: :one_for_one, name: CustomSupervisor]
 
