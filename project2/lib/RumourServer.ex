@@ -106,7 +106,7 @@ end
       propagate_pushSum(randomNode,nodes)
     end
 
-    def propagate_pushSum(randomNode,nodes)
+    def propagate_pushSum(randomNode,nodes) do
       GenServer.cast(randomNode, {:ReceivePushSum,0,0})
   end
 
@@ -131,7 +131,7 @@ end
       indifference_count = 0
       end
 
-      state = {this_s/2,pscount,adjList,this_s/2}
+      state = {this_s/2,indifference_count,neighbours,this_s/2}
 
       randomNode = Enum.random(neighbours)
       sendPushSum(randomNode, this_s/2, this_w/2)
