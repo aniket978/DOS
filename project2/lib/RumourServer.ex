@@ -4,20 +4,27 @@ defmodule RumourServer do
   def init() do
     {:ok, {0,0,[],1}}
   end
+
   def main(args) do
+    {n, type} = args
     all_childrens = Enum.map((1..n), fn(node_id) ->
-      {:ok, child_id = Genserver.start_link(__MODULE__, [])
+      {:ok, child_id} = Genserver.start_link(__MODULE__, [])
       updateChildPID(child_id, node_id)
       child_id
      end)
-     build_toplogy(type, all_childrens)
+     build_topology(type, all_childrens)
   end
+
   def build_topology(type, nodes) do
     case type do
       "full" -> build_full(nodes)
       "line" -> build_line(nodes)
     end
   end
+
+def build_line(nodes) do
+
+end
 
   def build_full(nodes) do
     Enum.each(nodes, fn(node) ->
@@ -29,15 +36,15 @@ defmodule RumourServer do
   def initiate_gossip(nodes) do
     random_node = Enum.random(nodes)
     update_gossip_count(random_node)
-    propogateGossip(random_node)
+    propogate_gossip(random_node)
   end
 
   def propogate_gossip(node) do
-    node_count = get_count(random_node)
+    node_count = get_count(node)
     cond do
       node_count < 11 ->
-        node_neighbours = get_neighbours(random_node)
-        node_random_neighbour = Enum.Random(node_neighbours)
+        node_neighbours = get_neighbours(node)
+        node_random_neighbour = Enum.random(node_neighbours)
         propogate_gossip(node_random_neighbour)
       true ->
         Process.exit(node, :normal)
@@ -59,7 +66,7 @@ defmodule RumourServer do
   def get_count(process_id) do
     GenServer.call(process_id, {:getCount})
   end
-  def update_count(process_id) do
+  def update_gossip_count(process_id) do
     GenServer.call(process_id, {:updateCount})
   end
 
@@ -71,15 +78,16 @@ defmodule RumourServer do
     {:reply, node_id, state}
   end
 
-  def handle_call({:updateCount} _from, state) do
-    {_, count, _, _} = state
-    state = {_, count+1, _, _}
+  def handle_call({:updateCount}, _from, state) do
+    {a, count, c, d} = state
+    # Fixing error : invalid use of _. "_" represents a value to be ignored in a pattern and cannot be used in expressions
+    state = {a, count+1, c, d}
     {:reply, count+1, state}
   end
 
   def handle_call({:updateNeighbours, neighbours}, _from, state) do
-    {id, _, list, _} = state
-    state = {id, _, neighbours, _}
+    {id, b, list, d} = state
+    state = {id, b, neighbours, d}
     {:reply, id, state}
   end
 
@@ -92,4 +100,5 @@ defmodule RumourServer do
     {_, count, _, _} = state
     {:reply, count, state}
   end
+
 end
