@@ -101,4 +101,45 @@ end
     {:reply, count, state}
   end
 
+  def initiate_pushSum(nodes) do
+      randomNode = Enum.random(nodes)
+      propagate_pushSum(randomNode,nodes)
+    end
+
+    def propagate_pushSum(randomNode,nodes)
+      GenServer.cast(randomNode, {:ReceivePushSum,0,0})
+  end
+
+    def handle_cast({:ReceivePushSum,received_S,received_W},state) do
+
+      {s,indifference_count,neighbours,w} = state
+
+      this_s = s + received_S
+      this_w = w + received_W
+
+      difference = abs((this_s/this_w) - (s/w))
+
+      cond do
+      difference < :math.pow(10,-10) && indifference_count==2 ->
+          IO.puts "Convergence achieved for this actor"
+          #inform about this and terminate this actor
+
+      difference < :math.pow(10,-10) && indifference_count<2 ->
+      indifference_count = indifference_count+1
+
+      difference > :math.pow(10,-10) ->
+      indifference_count = 0
+      end
+
+      state = {this_s/2,pscount,adjList,this_s/2}
+
+      randomNode = Enum.random(neighbours)
+      sendPushSum(randomNode, this_s/2, this_w/2)
+      {:noreply,state}
+    end
+
+    def sendPushSum(randomNode, s, w) do
+      GenServer.cast(randomNode, {:ReceivePushSum,s,w})
+    end
+
 end
