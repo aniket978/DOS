@@ -7,6 +7,8 @@ defmodule RumourServer do
     n =
       if topology == "torus" do
         round(:math.pow(:math.ceil(:math.sqrt(n)), 2))
+      else
+        n
     end
     all_childrens = Enum.map((1..n), fn(node_id) ->
       {:ok, child_id} = GenServer.start_link(__MODULE__, [])
@@ -222,7 +224,7 @@ defmodule RumourServer do
     if count == 0 do
       informed_count = :ets.update_counter(:counter, "informed_count", 1, {1,0})
       if informed_count <= round(0.9*total_nodes) do
-        IO.puts("informed:" <> Integer.to_string(informed_count)<> "/"<>Integer.to_string(total_nodes))
+        IO.puts("Rumour Heard: " <> Integer.to_string(informed_count)<> "/"<>Integer.to_string(total_nodes))
       end
 
       if informed_count == round(0.9*total_nodes) do
@@ -262,25 +264,39 @@ defmodule RumourServer do
     {:reply, {x,y}, state}
   end
 
-  def handle_cast({:ReceivePushSum, received_S, received_W}, state) do
+  def handle_cast({:ReceivePushSum, received_S, received_W, start_time, total_nodes}, state) do
     {s,indifference_count,neighbours,w, position} = state
     this_s = s + received_S
     this_w = w + received_W
     difference = abs((this_s/this_w) - (s/w))
+    # IO.inspect(state)
+    # IO.inspect(difference)
+    # IO.puts "indifference_count"<>Integer.to_string(indifference_count)
     indifference_count = cond do
       difference < :math.pow(10,-10) && indifference_count==2 ->
-        IO.puts "Convergence achieved for this actor"
-        System.halt(1)
-            #inform about this and terminate this actor
+        informed_count = :ets.update_counter(:counter, "informed_count", 1, {1,0})
+        # IO.inspect(informed_count)
+        IO.puts(Integer.to_string(informed_count)<>"/"<>Integer.to_string(total_nodes) <>"This Actor Converged with ratio:"<> Float.to_string(s/w))
+        if informed_count == total_nodes do
+          finish_time = :erlang.system_time / 1.0e6 |> round
+          IO.puts("All actors converged in: "<>Integer.to_string(finish_time - start_time) <> " milliseconds")
+          System.halt(0)
+        end
         2
+              #inform about this and terminate this actor
       difference < :math.pow(10,-10) && indifference_count<2 ->
         indifference_count + 1
       difference > :math.pow(10,-10) ->
         0
-      end
+      true->
+        indifference_count
+    end
     state = {this_s/2,indifference_count,neighbours,this_w/2, position}
+    # IO.inspect(state)
     randomNode = Enum.random(neighbours)
-    send_push_sum(randomNode, this_s/2, this_w/2)
+    # IO.inspect(randomNode)
+    send_push_sum(randomNode, this_s/2, this_w/2, start_time, total_nodes)
+
     {:noreply,state}
   end
 
@@ -290,18 +306,13 @@ defmodule RumourServer do
     {:noreply, state}
   end
 
- #  def receiveMessage(pid, startTime, total) do
- #   updateCountState(pid, startTime, total)
- #   recurseGossip(pid, startTime, total)
- # end
-
   def initiate_pushSum(nodes, start_time) do
       randomNode = Enum.random(nodes)
-      send_push_sum(randomNode,0,0)
+      send_push_sum(randomNode,0,0, start_time, Enum.count(nodes))
   end
 
-  def send_push_sum(randomNode, s, w) do
-    GenServer.cast(randomNode, {:ReceivePushSum,s,w})
+  def send_push_sum(randomNode, s, w, start_time, total_nodes) do
+    GenServer.cast(randomNode, {:ReceivePushSum,s,w, start_time, total_nodes})
   end
 
   def init([]) do
