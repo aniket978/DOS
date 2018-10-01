@@ -4,8 +4,8 @@ defmodule RumourServer do
   def main(args) do
     IO.puts(args)
     algorithm = "gossip"
-    topology = "sphere"
-    n = 100
+    topology = "full"
+    n = 8000
     :random.seed(:erlang.now)
     all_childrens = Enum.map((1..n), fn(node_id) ->
       {_, child_id} = GenServer.start_link(__MODULE__, [])
@@ -52,7 +52,6 @@ defmodule RumourServer do
     max_row_col = trunc(:math.sqrt(total_nodes))
     list_of_list = Enum.chunk_every(nodes, max_row_col)
     grid = Matrix.from_list(list_of_list)
-    mapXY = %{}
     Enum.each(0..max_row_col-1, fn(i)->
       Enum.each(0..max_row_col-1, fn(j) ->
         node_id = Enum.at(Enum.at(list_of_list, i), j)
@@ -109,23 +108,20 @@ defmodule RumourServer do
       {curr_x, curr_y} = get_2D_coordinates(node)
       IO.puts "For coordinate: "<>Float.to_string(curr_x)<>Float.to_string(curr_y)
       valid_neighbours =
-        Enum.reduce(suspected_neighbours, fn(suspected_neighbour, neighbours) ->
+        Enum.reduce(suspected_neighbours, [], fn suspected_neighbour, neighbours ->
           {x, y} = get_2D_coordinates(suspected_neighbour)
           distance = :math.pow(curr_x - x, 2) + :math.pow(curr_y - y, 2)
           distance = :math.sqrt(distance)
-          neighbours =
-            if nil do
-              []
-            else
-              neighbours
+          # IO.puts "Checking co-or: "<>Float.to_string(x)<>", "<>Float.to_string(y)
+          if distance <= 0.5 do
+            IO.puts "Found Neighbour"
+            neighbours ++ [suspected_neighbour]
+          else
+            neighbours
             end
-          IO.puts "Checking co-or: "<>Float.to_string(x)<>", "<>Float.to_string(y)
-            if distance <= 0.5 do
-              IO.puts "Found Neighbour"
-              [neighbours] ++ [suspected_neighbour]
-            else
-              neighbours
-            end
+        end)
+      Enum.reduce(valid_neighbours, [], fn(x, l) ->
+            if x == nil do l else [x | l] end
         end)
       update_neighbours(node, valid_neighbours)
     end)
@@ -135,6 +131,7 @@ defmodule RumourServer do
   def protocol(protocol, nodes) do
     case protocol do
       "gossip" -> initiate_gossip(nodes)
+      "push-sum" -> initiate_pushSum(nodes)
     end
   end
 
@@ -244,10 +241,41 @@ defmodule RumourServer do
     {:reply, {x,y}, state}
   end
 
+  def handle_cast({:ReceivePushSum, received_S, received_W}, state) do
+    {s,indifference_count,neighbours,w, position} = state
+    this_s = s + received_S
+    this_w = w + received_W
+    difference = abs((this_s/this_w) - (s/w))
+    indifference_count = cond do
+      difference < :math.pow(10,-10) && indifference_count==2 ->
+        IO.puts "Convergence achieved for this actor"
+        System.halt(1)
+            #inform about this and terminate this actor
+        2
+      difference < :math.pow(10,-10) && indifference_count<2 ->
+        indifference_count + 1
+      difference > :math.pow(10,-10) ->
+        0
+      end
+    state = {this_s/2,indifference_count,neighbours,this_w/2, position}
+    randomNode = Enum.random(neighbours)
+    send_push_sum(randomNode, this_s/2, this_w/2)
+    {:noreply,state}
+  end
+
   def handle_cast({:spreadRumour, nextNeighbour}, state) do
     update_count(nextNeighbour)
     propogate_gossip(nextNeighbour)
     {:noreply, state}
+  end
+
+  def initiate_pushSum(nodes) do
+      randomNode = Enum.random(nodes)
+      send_push_sum(randomNode,0,0)
+  end
+
+  def send_push_sum(randomNode, s, w) do
+    GenServer.cast(randomNode, {:ReceivePushSum,s,w})
   end
 
   def init([]) do
