@@ -7,6 +7,8 @@ defmodule RumourServer do
     n =
       if topology == "torus" do
         round(:math.pow(:math.ceil(:math.sqrt(n)), 2))
+      else
+        n
     end
     all_childrens = Enum.map((1..n), fn(node_id) ->
       {:ok, child_id} = GenServer.start_link(__MODULE__, [])
@@ -22,7 +24,8 @@ defmodule RumourServer do
      :ets.insert(counter, {"informed_count", 0})
      build_topology(topology, all_childrens)
      protocol(algorithm, all_childrens)
-     stay_awake()
+     :timer.sleep(3000)
+     # stay_awake()
   end
   def stay_awake() do
     stay_awake()
