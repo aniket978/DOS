@@ -4,6 +4,10 @@ defmodule RumourServer do
   def main(nodes, topology, algorithm) do
     n = String.to_integer(nodes)
     :random.seed(:erlang.now)
+    n =
+      if topology == "torus" do
+        round(:math.pow(:math.ceil(:math.sqrt(n)), 2))
+    end
     all_childrens = Enum.map((1..n), fn(node_id) ->
       {:ok, child_id} = GenServer.start_link(__MODULE__, [])
       updateChildPID(child_id, node_id)
@@ -14,6 +18,8 @@ defmodule RumourServer do
       end
       child_id
      end)
+     counter = :ets.new(:counter, [:named_table,:public])
+     :ets.insert(counter, {"informed_count", 0})
      build_topology(topology, all_childrens)
      protocol(algorithm, all_childrens)
      stay_awake()
@@ -27,7 +33,7 @@ defmodule RumourServer do
       "line" -> build_line(nodes)
       "imperfect-line" -> build_imperfect_line(nodes)
       "random-2d" -> build_random_2D(nodes)
-      "sphere" -> build_sphere(nodes)
+      "torus" -> build_sphere(nodes)
     end
   end
 
@@ -144,31 +150,32 @@ defmodule RumourServer do
 
   def initiate_gossip(nodes, start_time) do
     random_node = Enum.random(nodes)
-    update_count(random_node)
-    propogate_gossip(random_node, start_time)
+    update_count(random_node, start_time, Enum.count(nodes))
+    propogate_gossip(random_node, start_time, Enum.count(nodes))
   end
 
-  def propogate_gossip(node, start_time) do
+  def propogate_gossip(node, start_time, total_nodes) do
     node_count = get_count(node)
     cond do
       node_count < 11 ->
-        IO.puts("Rumour Heard: "<> Integer.to_string(node_count))
+        # IO.puts("Rumour Heard: "<> Integer.to_string(node_count))
         node_neighbours = get_neighbours(node)
         Enum.reduce(node_neighbours, [], fn(x, l) ->
            if x == node do l else [x | l] end
         end)
         if node_neighbours != nil do
           node_random_neighbour = Enum.random(node_neighbours)
-          spread_rumour(node, node_random_neighbour, start_time)
+          Task.start(RumourServer,:spread_rumour, [node, node_random_neighbour, start_time, total_nodes])
+          spread_rumour(node, node_random_neighbour, start_time, total_nodes)
         end
         # update_count(node_random_neighbour)
         # propogate_gossip(node_random_neighbour)
       true ->
-        finish_time =:erlang.system_time / 1.0e6 |> round
-        IO.puts("Convergence Achieved in "<> Integer.to_string(finish_time-start_time))
-        Process.exit(self(), :normal)
+        # finish_time =:erlang.system_time / 1.0e6 |> round
+        # IO.puts("Convergence Achieved for this actor in: "<> Integer.to_string(finish_time-start_time))<> "milliseconds"
+        Process.exit(node, :normal)
     end
-      # propogate_gossip(node, start_time)
+      # propogate_gossip(node, start_time, total_nodes)
   end
 
   def update_neighbours(process_id, neighbours) do
@@ -188,15 +195,18 @@ defmodule RumourServer do
   def get_count(process_id) do
     GenServer.call(process_id, {:getCount})
   end
-  def update_count(process_id) do
-    GenServer.call(process_id, {:updateCount})
+  def update_count(process_id, start_time, total_nodes) do
+    GenServer.call(process_id, {:updateCount, start_time, total_nodes})
   end
   def update_child_2D_location(process_id, x, y) do
     GenServer.call(process_id, {:update2D, x, y})
   end
 
-  def spread_rumour(process_id, next_neighbour_pid, start_time) do
-    GenServer.cast(process_id, {:spreadRumour, next_neighbour_pid, start_time})
+  def spread_rumour(process_id, next_neighbour_pid, start_time, total_nodes) do
+    update_count(next_neighbour_pid, start_time, total_nodes)
+    propogate_gossip(next_neighbour_pid, start_time, total_nodes)
+    # GenServer.cast(process_id, {:spreadRumour, next_neighbour_pid, start_time, total_nodes})
+
   end
 
 # Callbacks
@@ -207,8 +217,19 @@ defmodule RumourServer do
     {:reply, node_id, state}
   end
 
-  def handle_call({:updateCount}, _from, state) do
+  def handle_call({:updateCount, start_time, total_nodes}, _from, state) do
     {a, count, c, d, e} = state
+    if count == 0 do
+      informed_count = :ets.update_counter(:counter, "informed_count", 1, {1,0})
+      if informed_count <= round(0.9*total_nodes) do
+        IO.puts("informed:" <> Integer.to_string(informed_count)<> "/"<>Integer.to_string(total_nodes))
+      end
+
+      if informed_count == round(0.9*total_nodes) do
+        finish_time = :erlang.system_time / 1.0e6 |> round
+        IO.puts("90 percent or more nodes have heard the rumour....Convergence Achieved in: "<> Integer.to_string(finish_time-start_time))
+      end
+    end
     state = {a, count+1, c, d, e}
     {:reply, count+1, state}
   end
@@ -263,11 +284,16 @@ defmodule RumourServer do
     {:noreply,state}
   end
 
-  def handle_cast({:spreadRumour, nextNeighbour, start_time}, state) do
-    update_count(nextNeighbour)
-    propogate_gossip(nextNeighbour, start_time)
+  def handle_cast({:spreadRumour, nextNeighbour, start_time, total_nodes}, state) do
+    update_count(nextNeighbour, start_time, total_nodes)
+    propogate_gossip(nextNeighbour, start_time, total_nodes)
     {:noreply, state}
   end
+
+ #  def receiveMessage(pid, startTime, total) do
+ #   updateCountState(pid, startTime, total)
+ #   recurseGossip(pid, startTime, total)
+ # end
 
   def initiate_pushSum(nodes, start_time) do
       randomNode = Enum.random(nodes)
