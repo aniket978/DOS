@@ -1,14 +1,11 @@
 defmodule RumourServer do
   use GenServer
 
-  def main(args) do
-    IO.puts(args)
-    algorithm = "gossip"
-    topology = "full"
-    n = 8000
+  def main(nodes, topology, algorithm) do
+    n = String.to_integer(nodes)
     :random.seed(:erlang.now)
     all_childrens = Enum.map((1..n), fn(node_id) ->
-      {_, child_id} = GenServer.start_link(__MODULE__, [])
+      {:ok, child_id} = GenServer.start_link(__MODULE__, [])
       updateChildPID(child_id, node_id)
       if topology == "random-2d" do
           random_x = :rand.uniform
@@ -19,6 +16,10 @@ defmodule RumourServer do
      end)
      build_topology(topology, all_childrens)
      protocol(algorithm, all_childrens)
+     stay_awake()
+  end
+  def stay_awake() do
+    stay_awake()
   end
   def build_topology(type, nodes) do
     case type do
@@ -62,7 +63,6 @@ defmodule RumourServer do
 
     Enum.each(nodes, fn(node) ->
       {x, y} = get_2D_coordinates(node)
-      IO.puts "co-rd: "<> Integer.to_string(x) <> ", " <> Integer.to_string(y)
       left = if y==0 do grid[x][max_row_col-1] else grid[x][y-1] end
       top = if x==0 do grid[max_row_col-1][y] else grid[x-1][y] end
       right = if y==max_row_col-1 do grid[x][0] else grid[x][y+1] end
@@ -106,7 +106,6 @@ defmodule RumourServer do
     Enum.each(nodes, fn(node) ->
       suspected_neighbours = List.delete(nodes, node)
       {curr_x, curr_y} = get_2D_coordinates(node)
-      IO.puts "For coordinate: "<>Float.to_string(curr_x)<>Float.to_string(curr_y)
       valid_neighbours =
         Enum.reduce(suspected_neighbours, [], fn suspected_neighbour, neighbours ->
           {x, y} = get_2D_coordinates(suspected_neighbour)
@@ -114,7 +113,6 @@ defmodule RumourServer do
           distance = :math.sqrt(distance)
           # IO.puts "Checking co-or: "<>Float.to_string(x)<>", "<>Float.to_string(y)
           if distance <= 0.5 do
-            IO.puts "Found Neighbour"
             neighbours ++ [suspected_neighbour]
           else
             neighbours
@@ -129,9 +127,10 @@ defmodule RumourServer do
 
 
   def protocol(protocol, nodes) do
+    start_time = :erlang.system_time / 1.0e6 |> round
     case protocol do
-      "gossip" -> initiate_gossip(nodes)
-      "push-sum" -> initiate_pushSum(nodes)
+      "gossip" -> initiate_gossip(nodes, start_time)
+      "push-sum" -> initiate_pushSum(nodes, start_time)
     end
   end
 
@@ -143,13 +142,13 @@ defmodule RumourServer do
     end)
   end
 
-  def initiate_gossip(nodes) do
+  def initiate_gossip(nodes, start_time) do
     random_node = Enum.random(nodes)
     update_count(random_node)
-    propogate_gossip(random_node)
+    propogate_gossip(random_node, start_time)
   end
 
-  def propogate_gossip(node) do
+  def propogate_gossip(node, start_time) do
     node_count = get_count(node)
     cond do
       node_count < 11 ->
@@ -160,15 +159,16 @@ defmodule RumourServer do
         end)
         if node_neighbours != nil do
           node_random_neighbour = Enum.random(node_neighbours)
-          spread_rumour(node, node_random_neighbour)
+          spread_rumour(node, node_random_neighbour, start_time)
         end
         # update_count(node_random_neighbour)
         # propogate_gossip(node_random_neighbour)
       true ->
-        IO.puts("Total rumour finished. not Propogating now")
-        Process.exit(node, :normal)
+        finish_time =:erlang.system_time / 1.0e6 |> round
+        IO.puts("Convergence Achieved in "<> Integer.to_string(finish_time-start_time))
+        Process.exit(self(), :normal)
     end
-      # propogate_gossip(node)
+      # propogate_gossip(node, start_time)
   end
 
   def update_neighbours(process_id, neighbours) do
@@ -195,8 +195,8 @@ defmodule RumourServer do
     GenServer.call(process_id, {:update2D, x, y})
   end
 
-  def spread_rumour(process_id, next_neighbour_pid) do
-    GenServer.cast(process_id, {:spreadRumour, next_neighbour_pid})
+  def spread_rumour(process_id, next_neighbour_pid, start_time) do
+    GenServer.cast(process_id, {:spreadRumour, next_neighbour_pid, start_time})
   end
 
 # Callbacks
@@ -263,13 +263,13 @@ defmodule RumourServer do
     {:noreply,state}
   end
 
-  def handle_cast({:spreadRumour, nextNeighbour}, state) do
+  def handle_cast({:spreadRumour, nextNeighbour, start_time}, state) do
     update_count(nextNeighbour)
-    propogate_gossip(nextNeighbour)
+    propogate_gossip(nextNeighbour, start_time)
     {:noreply, state}
   end
 
-  def initiate_pushSum(nodes) do
+  def initiate_pushSum(nodes, start_time) do
       randomNode = Enum.random(nodes)
       send_push_sum(randomNode,0,0)
   end
