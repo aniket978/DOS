@@ -12,7 +12,9 @@ def deps do
     {:project2, "~> 0.1.0"}
   ]
 end
+
 ```
+*Note:* Also used a Matrix module which converts list into maps of maps which can act as a 2d grid. Refer here https://blog.danielberkompas.com/2016/04/23/multidimensional-arrays-in-elixir/
 
 # Group Info
  - Anip Mehta  UFID : 96505636
@@ -46,7 +48,7 @@ Imperfect-Line         20000
 Random-2D              5000        
 Torus                  20000
 Fully connected        15000
-3D
+3D                      10
 ```
 
 - Following is the table showing the maximum problem size(the number of nodes) that the Push-Sum Algorithm solved for each topology :
@@ -54,12 +56,12 @@ Fully connected        15000
 ```
 Topology	      Number of Nodes(Max. Problem size) 	   
 --------------------------------------------------
-Line                                 
-Imperfect-Line               
-Random-2D                      
-Torus                  
-Fully connected 
-3D
+Line                     100            
+Imperfect-Line          10000   
+Random-2D               10000       
+Torus                   10000
+Fully connected         50000
+3D                      15000
 ```
 
 
