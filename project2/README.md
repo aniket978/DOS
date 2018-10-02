@@ -1,6 +1,6 @@
 # Project2
 
-**Implementation of Gossip and Push-sum algorithms in Elixir**
+**Gossip simulator**
 
 ## Installation
 
