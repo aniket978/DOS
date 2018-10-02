@@ -1,6 +1,5 @@
 # Project2
-
-#Gossip simulator
+**Gossip simulator**
 
 ## Installation
 
@@ -20,7 +19,9 @@ end
  - Aniket Sinha UFID : 69598035
 
 
-** DOS Task2
+# DOS Task2
+
+** Implementation of Gossip and Push-Sum algorithms in Elixir
 
 What is working?
 
