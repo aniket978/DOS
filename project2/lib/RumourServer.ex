@@ -3,6 +3,7 @@ defmodule RumourServer do
 
   def main(nodes, topology, algorithm) do
     n = String.to_integer(nodes)
+    # seeding it with erlang:now so that it does not give repeated values which is required for random-2d
     :random.seed(:erlang.now)
     n =
       if topology == "torus" do
@@ -136,6 +137,7 @@ defmodule RumourServer do
   end
 
   def build_sphere(nodes) do
+    # builduing sphere toplogy
     total_nodes = Enum.count(nodes)
     max_row_col = trunc(:math.sqrt(total_nodes))
     list_of_list = Enum.chunk_every(nodes, max_row_col)
@@ -147,7 +149,7 @@ defmodule RumourServer do
         put_in grid[i][j], node_id
       end)
     end)
-
+    # updating each node with their neighbours in the topology
     Enum.each(nodes, fn(node) ->
       {x, y} = get_2D_coordinates(node)
       left = if y==0 do grid[x][max_row_col-1] else grid[x][y-1] end
@@ -160,6 +162,7 @@ defmodule RumourServer do
   end
 
   def build_imperfect_line(nodes) do
+    # only diference is it adds a extra random neighbour along with the line toplogy neighbours
     total_nodes = Enum.count(nodes)
     Enum.each(nodes, fn(node) ->
       currentIndex = Enum.find_index(nodes, fn(x) -> x==node end)
@@ -190,6 +193,7 @@ defmodule RumourServer do
   end
 
   def build_random_2D(nodes) do
+    # updating nodes with neighbours which are in euclidian distance of 0.5 
     Enum.each(nodes, fn(node) ->
       suspected_neighbours = List.delete(nodes, node)
       {curr_x, curr_y} = get_2D_coordinates(node)
