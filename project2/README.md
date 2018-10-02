@@ -21,7 +21,7 @@ end
 
 # DOS Task2
 
-** Implementation of Gossip and Push-Sum algorithms in Elixir
+** Implementation of Gossip and Push-Sum algorithms in Elixir**
 
 What is working?
 
