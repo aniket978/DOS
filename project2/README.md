@@ -12,8 +12,9 @@ def deps do
     {:project2, "~> 0.1.0"}
   ]
 end
-*Note:* Also used a Matrix module which converts list into maps of maps which can act as a 2d grid. Refer here https://blog.danielberkompas.com/2016/04/23/multidimensional-arrays-in-elixir/
+
 ```
+*Note:* Also used a Matrix module which converts list into maps of maps which can act as a 2d grid. Refer here https://blog.danielberkompas.com/2016/04/23/multidimensional-arrays-in-elixir/
 
 # Group Info
  - Anip Mehta  UFID : 96505636
