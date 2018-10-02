@@ -115,10 +115,6 @@ defmodule RumourServer do
         end)
       update_neighbours(node, neighbours)
     end)
-
-
-
-
   end
 
 
