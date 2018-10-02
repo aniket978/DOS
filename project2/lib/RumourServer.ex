@@ -24,8 +24,7 @@ defmodule RumourServer do
      :ets.insert(counter, {"informed_count", 0})
      build_topology(topology, all_childrens)
      protocol(algorithm, all_childrens)
-     :timer.sleep(3000)
-     # stay_awake()
+     stay_awake()
   end
   def stay_awake() do
     stay_awake()
