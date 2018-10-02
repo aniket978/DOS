@@ -26,13 +26,14 @@ end
 What is working?
 
 The algorithms : 'gossip' and 'push-sum' for the following topologies:
+``
 1.line
 2.imperfect-line
 3.random-2d
 4.torus
 5.full
 6.3d
-
+``
 What is the largest network you managed to deal with for each type of topology and algorithm?
 
 - Following is the table showing the maximum problem size(the number of nodes) that the Gossip Algorithm solved for each topology :
