@@ -76,17 +76,19 @@ syntax:
  - mix run proj2.exs 5000 torus gossip
  
  The topology above can accept the following values :
+  ```
  line
  imperfect-line
  random-2d
  torus
  full
  3d
- 
+ ```
  The algorithm above can accept values:
+ ```
  gossip
  push-sum
- 
+ ```
 Note: 
  The program continues to run in infinite loop even after the algorithm has converged. This is done to ensure that the main process does not die before getting all the print statements on the console. Press Ctrl+C to exit the main process after getting the output.
 
