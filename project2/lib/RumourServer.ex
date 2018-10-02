@@ -22,6 +22,8 @@ defmodule RumourServer do
      end)
      counter = :ets.new(:counter, [:named_table,:public])
      :ets.insert(counter, {"informed_count", 0})
+     nodeCounter = :ets.new(:node_counter, [:named_table,:public])
+     :ets.insert(nodeCounter, {"node_count", -1})
      build_topology(topology, all_childrens)
      protocol(algorithm, all_childrens)
      stay_awake()
@@ -29,15 +31,96 @@ defmodule RumourServer do
   def stay_awake() do
     stay_awake()
   end
+
   def build_topology(type, nodes) do
+    start_time = :erlang.system_time / 1.0e6 |> round
+    IO.puts("Building Toplogy - "<>type)
     case type do
       "full" -> build_full(nodes)
       "line" -> build_line(nodes)
       "imperfect-line" -> build_imperfect_line(nodes)
       "random-2d" -> build_random_2D(nodes)
       "torus" -> build_sphere(nodes)
+      "3d" -> build_3d(nodes)
     end
+    finish_time = :erlang.system_time / 1.0e6 |> round
+    IO.puts("Topology built in: "<>Integer.to_string(finish_time-start_time) <> " milliseconds")
   end
+
+
+  def build_3d(nodes) do
+    total_nodes = Enum.count(nodes)
+    max_row_col = trunc(:math.pow(total_nodes, 1/3))
+    IO.inspect(max_row_col)
+    z = total_nodes - round :math.pow(max_row_col, 2)
+    bucket = :ets.new(:bucket, [:set, :public])
+    Enum.each(0..max_row_col-1, fn(z)->
+      Enum.each(0..max_row_col-1, fn(y)->
+        Enum.each(0..max_row_col-1, fn(x)->
+          index = :ets.update_counter(:node_counter, "node_count", 1, {1,0})
+          if index < total_nodes do
+            node = Enum.fetch!(nodes, index)
+            update_child_3D_location(node, x, y, z)
+            :ets.insert(bucket, {{x, y, z}, node})
+          end
+        end)
+      end)
+    end)
+    Enum.each(nodes, fn(node) ->
+      {x, y, z} = get_3D_coordinates(node)
+      left_parse = :ets.lookup(bucket, {x, y-1, z})
+      left = if left_parse !=[] do [{_, pid}] = left_parse
+        pid
+        else
+          nil
+        end
+      top_parse = :ets.lookup(bucket, {x-1,y, z})
+      top = if top_parse !=[] do
+        [{_, pid}] = top_parse
+        pid
+        else
+          nil
+        end
+      right_parse = :ets.lookup(bucket, {x, y+1, z})
+      right = if right_parse !=[] do
+        [{_, pid}] = right_parse
+        pid
+        else
+          nil
+        end
+      bottom_parse = :ets.lookup(bucket, {x+1, y, z})
+      bottom = if bottom_parse !=[] do
+        [{_, pid}] = bottom_parse
+        pid
+        else
+          nil
+        end
+      topZ_parse = :ets.lookup(bucket, {x, y, z+1})
+      topZ = if topZ_parse !=[] do
+        [{_, pid}] = topZ_parse
+        pid
+        else
+          nil
+        end
+      bottomZ_parse = :ets.lookup(bucket, {x, y, z-1})
+      bottomZ = if bottomZ_parse !=[] do
+        [{_, pid}] = bottomZ_parse
+        pid
+        else
+          nil
+        end
+      # filter out null nodes as each neighbour does not get all imagine a rubiks cube
+      neighbours = Enum.reduce([left, top, right, bottom, topZ, bottomZ], [], fn(x, l) ->
+            if x == nil do l else [x | l] end
+        end)
+      update_neighbours(node, neighbours)
+    end)
+
+
+
+
+  end
+
 
   def build_line(nodes) do
     total_nodes = Enum.count(nodes)
@@ -48,7 +131,7 @@ defmodule RumourServer do
           currentIndex+1 == total_nodes ->
             [] ++ [Enum.fetch!(nodes, currentIndex - 1)]
           currentIndex == 0 ->
-            [] ++ [Enum.fetch(nodes, currentIndex + 1)]
+            [] ++ [Enum.fetch!(nodes, currentIndex + 1)]
           true ->
             [] ++ [Enum.fetch!(nodes, currentIndex + 1)] ++ [Enum.fetch!(nodes, currentIndex - 1)]
         end
@@ -89,7 +172,7 @@ defmodule RumourServer do
           currentIndex+1 == total_nodes ->
             [] ++ [Enum.fetch!(nodes, currentIndex - 1)]
           currentIndex == 0 ->
-            [] ++ [Enum.fetch(nodes, currentIndex + 1)]
+            [] ++ [Enum.fetch!(nodes, currentIndex + 1)]
           true ->
             [] ++ [Enum.fetch!(nodes, currentIndex + 1)] ++ [Enum.fetch!(nodes, currentIndex - 1)]
         end
@@ -194,6 +277,9 @@ defmodule RumourServer do
   def get_2D_coordinates(process_id) do
     GenServer.call(process_id, {:get2D})
   end
+  def get_3D_coordinates(process_id) do
+    GenServer.call(process_id, {:get3D})
+  end
   def get_count(process_id) do
     GenServer.call(process_id, {:getCount})
   end
@@ -202,6 +288,10 @@ defmodule RumourServer do
   end
   def update_child_2D_location(process_id, x, y) do
     GenServer.call(process_id, {:update2D, x, y})
+  end
+
+  def update_child_3D_location(process_id, x, y, z) do
+    GenServer.call(process_id, {:update3D, x, y, z})
   end
 
   def spread_rumour(process_id, next_neighbour_pid, start_time, total_nodes) do
@@ -229,7 +319,8 @@ defmodule RumourServer do
 
       if informed_count == round(0.9*total_nodes) do
         finish_time = :erlang.system_time / 1.0e6 |> round
-        IO.puts("90 percent or more nodes have heard the rumour....Convergence Achieved in: "<> Integer.to_string(finish_time-start_time))
+        IO.puts("90 percent or more nodes have heard the rumour....Convergence Achieved in: "<> Integer.to_string(finish_time-start_time)<>" milliseconds")
+        # System.halt(0)
       end
     end
     state = {a, count+1, c, d, e}
@@ -258,10 +349,21 @@ defmodule RumourServer do
     # IO.puts("Co-ordinates:" <> Float.to_string(x)<>", "<> Float.to_string(y))
     {:reply, {x,y}, state}
   end
+  def handle_call({:update3D, x, y, z}, _from, state) do
+    {a, b, c, d, {old_x, old_y, old_z}} = state
+    state = {a, b, c, d, {x, y, z}}
+    # IO.puts("Co-ordinates:" <> Float.to_string(x)<>", "<> Float.to_string(y))
+    {:reply, {x,y,z}, state}
+  end
 
   def handle_call({:get2D}, _from, state) do
     {_, _, _, _, {x, y, _}} = state
     {:reply, {x,y}, state}
+  end
+
+  def handle_call({:get3D}, _from, state) do
+    {_, _, _, _, {x, y, z}} = state
+    {:reply, {x,y, z}, state}
   end
 
   def handle_cast({:ReceivePushSum, received_S, received_W, start_time, total_nodes}, state) do
