@@ -71,9 +71,9 @@ syntax:
  - mix run proj2.exs (number of nodes) (topology) (algorithm)
  
  Examples:
- - ``mix run proj2.exs 5000 random-2d gossip``
+ - ``mix run proj2.exs 1000 random-2d gossip``
 
- - ``mix run proj2.exs 5000 torus gossip``
+ - ``mix run proj2.exs 1000 torus push-sum``
  
  The topology above can accept the following values :
   ```
