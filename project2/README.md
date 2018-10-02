@@ -67,7 +67,7 @@ Fully connected
 # Instructions
 ## Input
 
-syntax:
+Syntax:
  - mix run proj2.exs (number of nodes) (topology) (algorithm)
  
  Examples:
