@@ -3,6 +3,7 @@ defmodule RumourServer do
 
   def main(nodes, topology, algorithm) do
     n = String.to_integer(nodes)
+    # seeding it with erlang:now so that it does not give repeated values which is required for random-2d
     :random.seed(:erlang.now)
     n =
       if topology == "torus" do
@@ -118,6 +119,76 @@ defmodule RumourServer do
   end
 
 
+
+  def build_3d(nodes) do
+    total_nodes = Enum.count(nodes)
+    max_row_col = trunc(:math.pow(total_nodes, 1/3))
+    IO.inspect(max_row_col)
+    z = total_nodes - round :math.pow(max_row_col, 2)
+    bucket = :ets.new(:bucket, [:set, :public])
+    Enum.each(0..max_row_col-1, fn(z)->
+      Enum.each(0..max_row_col-1, fn(y)->
+        Enum.each(0..max_row_col-1, fn(x)->
+          index = :ets.update_counter(:node_counter, "node_count", 1, {1,0})
+          if index < total_nodes do
+            node = Enum.fetch!(nodes, index)
+            update_child_3D_location(node, x, y, z)
+            :ets.insert(bucket, {{x, y, z}, node})
+          end
+        end)
+      end)
+    end)
+    Enum.each(nodes, fn(node) ->
+      {x, y, z} = get_3D_coordinates(node)
+      left_parse = :ets.lookup(bucket, {x, y-1, z})
+      left = if left_parse !=[] do [{_, pid}] = left_parse
+        pid
+        else
+          nil
+        end
+      top_parse = :ets.lookup(bucket, {x-1,y, z})
+      top = if top_parse !=[] do
+        [{_, pid}] = top_parse
+        pid
+        else
+          nil
+        end
+      right_parse = :ets.lookup(bucket, {x, y+1, z})
+      right = if right_parse !=[] do
+        [{_, pid}] = right_parse
+        pid
+        else
+          nil
+        end
+      bottom_parse = :ets.lookup(bucket, {x+1, y, z})
+      bottom = if bottom_parse !=[] do
+        [{_, pid}] = bottom_parse
+        pid
+        else
+          nil
+        end
+      topZ_parse = :ets.lookup(bucket, {x, y, z+1})
+      topZ = if topZ_parse !=[] do
+        [{_, pid}] = topZ_parse
+        pid
+        else
+          nil
+        end
+      bottomZ_parse = :ets.lookup(bucket, {x, y, z-1})
+      bottomZ = if bottomZ_parse !=[] do
+        [{_, pid}] = bottomZ_parse
+        pid
+        else
+          nil
+        end
+      # filter out null nodes as each neighbour does not get all imagine a rubiks cube
+      neighbours = Enum.reduce([left, top, right, bottom, topZ, bottomZ], [], fn(x, l) ->
+            if x == nil do l else [x | l] end
+        end)
+      update_neighbours(node, neighbours)
+    end)
+  end
+
   def build_line(nodes) do
     total_nodes = Enum.count(nodes)
     Enum.each(nodes, fn(node) ->
@@ -136,6 +207,7 @@ defmodule RumourServer do
   end
 
   def build_sphere(nodes) do
+    # builduing sphere toplogy
     total_nodes = Enum.count(nodes)
     max_row_col = trunc(:math.sqrt(total_nodes))
     list_of_list = Enum.chunk_every(nodes, max_row_col)
@@ -147,7 +219,7 @@ defmodule RumourServer do
         put_in grid[i][j], node_id
       end)
     end)
-
+    # updating each node with their neighbours in the topology
     Enum.each(nodes, fn(node) ->
       {x, y} = get_2D_coordinates(node)
       left = if y==0 do grid[x][max_row_col-1] else grid[x][y-1] end
@@ -160,6 +232,7 @@ defmodule RumourServer do
   end
 
   def build_imperfect_line(nodes) do
+    # only diference is it adds a extra random neighbour along with the line toplogy neighbours
     total_nodes = Enum.count(nodes)
     Enum.each(nodes, fn(node) ->
       currentIndex = Enum.find_index(nodes, fn(x) -> x==node end)
@@ -190,6 +263,7 @@ defmodule RumourServer do
   end
 
   def build_random_2D(nodes) do
+    # updating nodes with neighbours which are in euclidian distance of 0.5 
     Enum.each(nodes, fn(node) ->
       suspected_neighbours = List.delete(nodes, node)
       {curr_x, curr_y} = get_2D_coordinates(node)
